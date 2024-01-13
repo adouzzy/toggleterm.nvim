@@ -253,6 +253,48 @@ function M.send_lines_to_terminal(selection_type, trim_spaces, cmd_data)
   api.nvim_win_set_cursor(current_window, { start_line, start_col })
 end
 
+function M.send_lines_to_ipython(selection_type, trim_spaces, cmd_data)
+	local id = tonumber(cmd_data.args) or 1
+	-- trim_spaces = trim_spaces == nil or trim_spaces
+
+	vim.validate({
+		selection_type = { selection_type, "string", true },
+		trim_spaces = { trim_spaces, "boolean", true },
+		terminal_id = { id, "number", true },
+	})
+
+	local current_window = api.nvim_get_current_win() -- save current window
+
+	local lines = {}
+	-- Beginning of the selection: line number, column number
+	local start_line, start_col
+	if selection_type == "single_line" then
+		start_line, start_col = unpack(api.nvim_win_get_cursor(0))
+		table.insert(lines, fn.getline(start_line))
+	elseif selection_type == "visual_lines" then
+		local res = utils.get_line_selection("visual")
+		start_line, start_col = unpack(res.start_pos)
+		lines = res.selected_lines
+	elseif selection_type == "visual_selection" then
+		local res = utils.get_line_selection("visual")
+		start_line, start_col = unpack(res.start_pos)
+		lines = utils.get_visual_selection(res)
+	end
+
+	if not lines or not next(lines) then return end
+
+	M.exec("%cpaste", id)
+	for _, line in ipairs(lines) do
+		-- M.exec(line, id)
+    vim.wait(100, function() M.exec(line, id); return true end)
+	end
+  vim.wait(200, function() M.exec("--", id); return true end)
+
+	-- Jump back with the cursor where we were at the beginning of the selection
+	api.nvim_set_current_win(current_window)
+	api.nvim_win_set_cursor(current_window, { start_line, start_col })
+end
+
 function M.toggle_command(args, count)
   local parsed = commandline.parse(args)
   vim.validate({
@@ -431,6 +473,19 @@ local function setup_commands()
   command(
     "ToggleTermSendVisualSelection",
     function(args) M.send_lines_to_terminal("visual_selection", true, args) end,
+    { range = true, nargs = "?" }
+  )
+
+  command(
+    "ToggleTermSendVisualSelection2",
+    function(args) M.send_lines_to_terminal("visual_selection", true, args) end,
+    { range = true, nargs = "?" }
+  )
+
+
+  command(
+    "ToggleTermSendIpython",
+    function(args) M.send_lines_to_ipython("visual_selection", false, args) end,
     { range = true, nargs = "?" }
   )
 
